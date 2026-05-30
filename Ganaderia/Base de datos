@@ -1,0 +1,1147 @@
+create table estado(
+    id_estado SERIAL primary key,
+    nombre VARCHAR(50) not null,
+    descripcion text
+);
+
+create table puestos(
+    id_puesto SERIAL primary key,
+    nombre VARCHAR(50) not null unique,
+    descripcion text
+);
+
+create table tipo_corral(
+    id_tipo serial primary key,
+    nombre VARCHAR(30) not null unique,
+    descripcion text
+);
+
+create table dietas(
+    id_dieta SERIAL primary key,
+    nombre VARCHAR(30) not null,
+    factor FLOAT,
+    descripcion text,
+    activo BOOLEAN default true
+);
+
+create table ingredientes(
+    id_ingredientes SERIAL primary key,
+    nombre VARCHAR(20) not null,
+    unidad_medida VARCHAR(10) not null,
+    stock_actual DECIMAL(10,2) default 0,
+    stock_minimo DECIMAL (10,2) default 0,
+    precio_unitario DECIMAL(10,2) default 0,
+    activo BOOLEAN DEFAULT true
+);
+
+create table dieta_ingredientes(
+    id_dieta int not null references dietas(id_dieta),
+    id_ingredientes int not null references ingredientes(id_ingredientes),
+    porcentaje DECIMAL(5,2) not null check(porcentaje>0),
+    PRIMARY KEY (id_dieta, id_ingredientes)
+);
+
+create table tipo_medicamento(
+    id_tipo SERIAL primary key,
+    nombre VARCHAR(20) not null,
+    descripcion text
+);
+
+create table medicamentos(
+    id_medicamento SERIAL primary key,
+    nombre VARCHAR(80) not null,
+    tipo_dosis TEXT not null CHECK(tipo_dosis in('Fija', 'Proporcional')),
+    dosis_fija DECIMAL(10,2),
+    dosis_kg DECIMAL(10,4),               -- dosis por kg
+    base_peso DECIMAL(10,4),
+    requiere_retiro BOOLEAN default false,
+    id_tipo_medicamento INT not null references tipo_medicamento(id_tipo),
+    retiro_dias int default 0,
+    stock_actual DECIMAL(10,2) default 0,
+    stock_minimo DECIMAL(10,2) default 0,
+    unidad_medida VARCHAR(20) not null,
+    activo BOOLEAN default true,
+    CHECK (
+        (tipo_dosis = 'Fija' AND dosis_fija IS NOT NULL AND dosis_kg IS NULL)
+        OR
+        (tipo_dosis = 'Proporcional' AND dosis_kg IS NOT NULL AND dosis_fija IS NULL)
+    )
+);
+
+create table corrales(
+    id_corral SERIAL primary key,
+    nombre VARCHAR(20) not null,
+    capacidad int not null check(capacidad>=0),
+    id_tipo_corral int not null references tipo_corral(id_tipo),
+    dieta_actual int not null references dietas(id_dieta),
+    activo BOOLEAN default true
+);
+create table roles(
+id_rol SERIAL primary key,
+nombre VARCHAR(30) unique not null,
+descripcion text
+);
+create table proveedores(
+    id_proveedor SERIAL primary key,
+    nombre VARCHAR(60) not null,
+    apellido_paterno VARCHAR(50),
+    apellido_materno VARCHAR(50),
+    rfc VARCHAR(13) UNIQUE,
+    telefono VARCHAR(20),
+    direccion TEXT,
+    activo BOOLEAN default true
+);
+
+create table empleados(
+    id_empleado SERIAL primary key,
+    nombre VARCHAR(60) not null,
+    apellido_paterno VARCHAR(50) not null,
+    apellido_materno VARCHAR(50),
+    rfc VARCHAR(13) not null,
+    id_puesto int not null references puestos(id_puesto),
+    usuario VARCHAR(20) unique not null,
+    contrasena VARCHAR(10) not null,          -- se recomienda aumentar longitud para hash
+    activo BOOLEAN default true,
+    fecha_contrato date default CURRENT_DATE,
+    observaciones text
+);
+
+-- =============================================
+-- MEJORAS A TABLAS EXISTENTES
+-- =============================================
+
+-- Agregar campos a proveedores
+ALTER TABLE proveedores
+ADD COLUMN IF NOT EXISTS contacto_nombre VARCHAR(100),
+ADD COLUMN IF NOT EXISTS contacto_apellido VARCHAR(100),
+ADD COLUMN IF NOT EXISTS celular VARCHAR(20),
+ADD COLUMN IF NOT EXISTS municipio VARCHAR(100),
+ADD COLUMn IF NOT EXISTS estado_procedencia VARCHAR(100),
+ADD COLUMN IF NOT EXISTS codigo_postal VARCHAR(10),
+ADD COLUMN IF NOT EXISTS email VARCHAR(100),
+ADD COLUMN IF NOT EXISTS tipo VARCHAR(20) CHECK (tipo IN ('Proveedor', 'Comprador', 'Ambos')) DEFAULT 'Proveedor';
+
+-- Agregar campos a compradores
+ALTER TABLE compradores
+ADD COLUMN IF NOT EXISTS apellido_paterno VARCHAR(100),
+ADD COLUMN IF NOT EXISTS apellido_materno VARCHAR(100),
+ADD COLUMN IF NOT EXISTS celular VARCHAR(20),
+ADD COLUMN IF NOT EXISTS email VARCHAR(100),
+ADD COLUMN IF NOT EXISTS municipio VARCHAR(100),
+ADD COLUMN IF NOT EXISTS estado VARCHAR(100),
+ADD COLUMN IF NOT EXISTS codigo_postal VARCHAR(10),
+ADD COLUMN IF NOT EXISTS tipo_persona VARCHAR(20) CHECK (tipo_persona IN ('Física', 'Moral')) DEFAULT 'Física',
+ADD COLUMN IF NOT EXISTS notas TEXT,
+ADD COLUMN IF NOT EXISTS activo BOOLEAN DEFAULT true,
+ADD COLUMN IF NOT EXISTS fecha_registro DATE DEFAULT CURRENT_DATE;
+
+-- Mejorar guías de tránsito
+ALTER TABLE guias_transito
+ADD COLUMN IF NOT EXISTS contacto_nombre VARCHAR(100),
+ADD COLUMN IF NOT EXISTS contacto_apellido VARCHAR(100),
+ADD COLUMN IF NOT EXISTS celular_contacto VARCHAR(20),
+ADD COLUMN IF NOT EXISTS municipio_origen VARCHAR(100),
+ADD COLUMN IF NOT EXISTS estado_origen VARCHAR(100),
+ADD COLUMN IF NOT EXISTS codigo_postal_origen VARCHAR(10),
+ADD COLUMN IF NOT EXISTS cantidad_bovinos INT,
+ADD COLUMN IF NOT EXISTS placa_vehiculo VARCHAR(20),
+ADD COLUMN IF NOT EXISTS nombre_conductor VARCHAR(100);
+
+create table compradores(
+    id_comprador SERIAL primary key,
+    nombre VARCHAR(100) not null,
+    rfc VARCHAR(13),
+    telefono VARCHAR(20),
+    direccion TEXT
+);
+
+--------Tablas dependientes 
+create table animales(
+    arete VARCHAR(20) primary key,
+    id_estado INT not null references estado(id_estado),
+    sexo text not null check (sexo in('macho', 'hembra')),
+    peso_entrada DECIMAL(8,2) not null check(peso_entrada >0),
+    meses int not null CHECK(meses between 1 and 300),
+    precio_compra DECIMAL(10,2) not null check(precio_compra >0),
+    id_proveedor INT references proveedores(id_proveedor),
+    id_corral_actual INT references corrales(id_corral),
+    fecha_ingreso DATE not null default CURRENT_DATE,
+    observaciones TEXT,
+    creado_por INT references empleados(id_empleado),
+    fecha_creacion TIMESTAMP default CURRENT_TIMESTAMP,
+    fecha_muerte DATE,
+    causa_muerte text
+);
+
+create table guias_transito(
+    id_guia SERIAL primary key,
+    numero_guia VARCHAR(50) not null unique,
+    id_proveedor INT not null references proveedores(id_proveedor),
+    motivo VARCHAR(50) not null,
+    fecha DATE default CURRENT_DATE,
+    observaciones TEXT
+);
+
+create table recepcion_lotes(
+    id_recepcion SERIAL primary key,
+    id_guia int not null references guias_transito(id_guia),
+    fecha_recepcion DATE default CURRENT_DATE,
+    animales_programados INT,
+    animales_recibidos int not null,
+    animales_muertos int default 0,
+    animales_enfermos INT default 0,
+    id_empleado INT not null references empleados(id_empleado),
+    observaciones TEXT
+);
+
+create table tratamientos(
+    id_tratamiento SERIAL primary key,
+    arete VARCHAR(20) not null references animales(arete),
+    id_medicamento INT not null references medicamentos(id_medicamento),
+    dosis_aplicada DECIMAL(10,2) not null,
+    fecha_aplicacion DATE default CURRENT_DATE,
+    id_empleado INT not null references empleados(id_empleado),
+    observaciones text,
+    fecha_disponible DATE,
+    disponible BOOLEAN default false
+);
+
+create table servicios_alimentacion(
+    id_servicios SERIAL primary key,
+    id_corral int references corrales(id_corral),
+    id_dieta int not null references dietas(id_dieta),
+    cantidad_kg DECIMAL(10,2) not null,
+    fecha_servicio DATE default CURRENT_DATE,
+    id_empleado int not null references empleados(id_empleado)
+);
+
+create table entrada_almacen(
+    id_entrada SERIAL primary key,
+    id_ingrediente INT references ingredientes(id_ingredientes),
+    id_medicamento INT references medicamentos(id_medicamento),
+    cantidad DECIMAL(10,2) not null,
+    precio_unitario DECIMAL(10,2) not null,
+    fecha_caducidad DATE,
+    fecha_entrada DATE DEFAULT CURRENT_DATE,
+    id_proveedor int not null references proveedores(id_proveedor),
+    CHECK (id_ingrediente IS NOT NULL OR id_medicamento IS NOT NULL)
+);
+
+create table ventas(
+    id_venta SERIAL primary key,
+    id_comprador int not null references compradores(id_comprador),
+    fecha_venta DATE default CURRENT_DATE,
+    precio_kg DECIMAL(10,2) not null,
+    peso_total DECIMAL(10,2) not null,
+    total DECIMAL(12,3) GENERATED ALWAYS AS (peso_total * precio_kg) STORED,
+    estatus text check (estatus IN('Completado', 'En proceso'))
+);
+
+create table venta_detalle(
+    id_venta int not null references ventas(id_venta),
+    arete VARCHAR(20) not null references animales(arete),
+    precio DECIMAL(10,2),
+    PRIMARY KEY (id_venta, arete)
+);
+
+create table historial_peso(
+    arete VARCHAR(20) references animales(arete),
+    fecha DATE default CURRENT_DATE,
+    peso DECIMAL(10,2) not null CHECK(peso>0),
+    primary key (arete,fecha)
+);
+
+create table tipo_evento(
+    id_tipo SERIAL primary key,
+    nombre varchar(30) not null,
+    descripcion text
+);
+
+create table historial_eventos(
+    id_evento SERIAL primary key,
+    arete VARCHAR(20) not null references animales(arete),
+    id_tipo int not null references tipo_evento(id_tipo),
+    descripcion TEXT,
+    fecha_evento DATE default CURRENT_DATE,
+    id_empleado INT not null references empleados(id_empleado)
+);
+
+create table modulos(
+    id_modulo SERIAL primary key,
+    nombre VARCHAR(20) unique not null,
+    descripcion text
+);
+
+create table permisos(
+    id_permiso SERIAL primary key,
+    id_puesto int not null references puestos(id_puesto),
+    id_rol int references roles(id_rol),
+    id_modulo int not null references modulos(id_modulo),
+    puede_leer BOOLEAN default true,
+    puede_crear BOOLEAN default false,
+    puede_editar BOOLEAN default false,
+    puede_eliminar BOOLEAN default false,
+    check (id_puesto is not null or id_rol is not null)
+    );
+
+create table usuarios(
+    id_usuarios SERIAL primary key,
+    id_empleado int not null unique references empleados(id_empleado),
+    usuario VARCHAR(50) not null unique,
+    password_hash VARCHAR(250) unique not null,
+    activo BOOLEAN default true,
+    ultimo_login TIMESTAMP,
+    created_at timestamp default CURRENT_TIMESTAMP
+);
+
+create table bitacora (
+    id_bitacora SERIAL PRIMARY KEY,
+    id_empleado INT NOT null references empleados(id_empleado),
+    accion VARCHAR(100) NOT NULL,
+    tabla_afectada VARCHAR(50),
+    registro_id VARCHAR(50),
+    datos_previos TEXT,
+    datos_nuevos TEXT,
+    fecha DATE DEFAULT CURRENT_date
+);
+
+create table alertas(
+    id_alerta SERIAL primary key,
+    tipo TEXT,
+    mensaje TEXT,
+    fecha TIMESTAMP default CURRENT_TIMESTAMP
+);
+-- Último servicio registrado
+SELECT * FROM servicios_alimentacion 
+ORDER BY id_servicios DESC 
+LIMIT 1;
+
+ALTER TABLE servicios_alimentacion
+ADD COLUMN observaciones TEXT;
+------Meter datos iniciales
+
+
+INSERT INTO estado (nombre, descripcion) VALUES
+('Activo', 'En corral, sin novedad'),
+('Enfermo', 'En observación veterinaria'),
+('Comprado', 'En tránsito o recién comprado'),
+('Muerto', 'Fallecido'),
+('Vendido', 'Vendido a comprador');
+
+INSERT INTO puestos (nombre, descripcion) VALUES
+('Administrador', 'Acceso total al sistema'),
+('Recepcionista', 'Encargado de recepción de animales'),
+('Vendedor', 'Gestiona las ventas de ganado'),
+('Veterinario', 'Aplica tratamientos y revisa salud'),
+('Alimentador', 'Sirve las dietas en corrales');
+
+INSERT INTO tipo_corral (nombre, descripcion) VALUES
+('Engorda', 'Corral para engorda intensiva'),
+('Cuarentena', 'Para animales recién llegados o enfermos'),
+('Vaquillas', 'Corral para vaquillas de reemplazo'),
+('Toros', 'Corral para toros reproductores');
+
+INSERT INTO proveedores (nombre, apellido_paterno, rfc, telefono, direccion) VALUES
+('Ganadera El Rosario', 'S.A.', 'GER123456789', '555-1234', 'Km 10 Carretera a Lagos'),
+('Agropecuaria La Pradera', 'S.A.', 'ALP987654321', '555-5678', 'Av. Principal 456'),
+('Criadero San José', 'S.A.', 'CSJ111111111', '555-9012', 'Rancho San José, Jal.');
+
+INSERT INTO empleados (nombre, apellido_paterno, rfc, id_puesto, usuario, contrasena) VALUES
+('Juan', 'Pérez', 'JUPG980101ABC', 4, 'jperez', 'admin123'),
+('María', 'González', 'MAGM900202XYZ', 5, 'mgonzalez', 'recepcion'),
+('Pedro', 'Ramírez', 'PERR850303DEF', 8, 'pramirez', 'alimento');
+
+
+INSERT INTO compradores (nombre, rfc, telefono, direccion) VALUES
+('Frigorífico La Moderna', 'FLM120101ABC', '555-3344', 'Zona Industrial 789'),
+('Carnes Selectas S.A.', 'CSS121212XYZ', '555-5566', 'Av. Central 321');
+
+INSERT INTO dietas (nombre, factor, descripcion) VALUES
+('Dieta inicio', 0.035, 'Dieta de recepción (35 g por kg de peso vivo)'),
+('Dieta crecimiento', 0.030, 'Dieta de desarrollo (30 g/kg)'),
+('Dieta finalizador', 0.028, 'Dieta de engorda final (28 g/kg)');
+
+INSERT INTO ingredientes (nombre, unidad_medida, stock_actual, stock_minimo, precio_unitario) VALUES
+('Maíz molido', 'kg', 5000, 1000, 7.50),
+('Pasta de soya', 'kg', 2000, 500, 15.00),
+('Salvado de trigo', 'kg', 1500, 300, 5.00),
+('Minerales', 'kg', 300, 50, 25.00),
+('Melaza', 'kg', 800, 100, 10.00);
+
+INSERT INTO dieta_ingredientes (id_dieta, id_ingredientes, porcentaje) VALUES
+(1, 1, 60),   -- Dieta inicio: 60% maíz
+(1, 2, 25),   -- 25% soya
+(1, 5, 10),   -- 10% melaza
+(1, 4, 5),    -- 5% minerales
+
+(2, 1, 65),   -- Crecimiento
+(2, 2, 20),
+(2, 3, 10),
+(2, 4, 5),
+
+(3, 1, 70),   -- Finalizador
+(3, 2, 15),
+(3, 3, 10),
+(3, 4, 5);
+
+INSERT INTO tipo_medicamento (nombre, descripcion) VALUES
+('Antibiótico', 'Medicamento para infecciones bacterianas'),
+('Desparasitante', 'Control de parásitos internos y externos'),
+('Vacuna', 'Inmunización preventiva'),
+('Antiinflamatorio', 'Reduce inflamación y dolor');
+
+INSERT INTO corrales (nombre, capacidad, id_tipo_corral, dieta_actual) VALUES
+('Corral 1', 50, 1, 1),
+('Corral 2', 40, 1, 2),
+('Corral 3', 30, 1, 3),
+('Cuarentena Norte', 20, 2, 1);
+
+INSERT INTO modulos (nombre, descripcion) VALUES
+('Animales', 'Gestión de animales'),
+('Corrales', 'Administración de corrales'),
+('Ventas', 'Proceso de ventas'),
+('Tratamientos', 'Aplicación de medicamentos'),
+('Alimentación', 'Servicios de alimentación'),
+('Reportes', 'Consultas y reportes');
+
+INSERT INTO permisos (id_puesto, id_modulo, puede_leer, puede_crear, puede_editar, puede_eliminar)
+SELECT 1, id_modulo, true, true, true, true FROM modulos;
+
+-- Recepcionista: solo leer en algunos, crear en recepción
+INSERT INTO permisos (id_puesto, id_modulo, puede_leer, puede_crear, puede_editar, puede_eliminar)
+VALUES
+(2, 1, true, true, false, false),  -- Animales
+(2, 5, true, false, false, false); -- Alimentación
+
+
+INSERT INTO tipo_evento (nombre, descripcion) VALUES
+('Movimiento', 'Cambio de corral'),
+('Muerte', 'Registro de fallecimiento'),
+('Enfermedad', 'Diagnóstico de enfermedad'),
+('Tratamiento', 'Aplicación de medicamento'),
+('Venta', 'Venta del animal');
+-------Corregir
+INSERT INTO animales (arete, id_estado, sexo, peso_entrada, meses, precio_compra, id_proveedor, id_corral_actual, creado_por)
+VALUES
+('AN001', 8, 'macho', 200, 12, 8500.00, 3, 1, 4),
+('AN002', 8, 'macho', 210, 13, 8600.00, 1, 1, 4),
+('AN003', 8, 'hembra', 190, 11, 8200.00, 2, 2, 4),
+('AN004', 9, 'hembra', 195, 12, 8300.00, 2, 2, 4),
+('AN005', 10, 'macho', 220, 14, 8700.00, 1, 3, 4);
+
+INSERT INTO historial_peso (arete, fecha, peso) VALUES
+('AN001', '2025-05-01', 200),
+('AN001', '2025-06-01', 250),
+('AN001', '2025-07-01', 295),
+('AN002', '2025-05-01', 210),
+('AN002', '2025-07-01', 280);
+
+INSERT INTO guias_transito (numero_guia, id_proveedor, motivo) VALUES
+('GT-001', 1, 'Recepción'),
+('GT-002', 2, 'Recepción');
+
+INSERT INTO recepcion_lotes (id_guia, animales_programados, animales_recibidos, id_empleado)
+VALUES
+(1, 10, 10, 5),
+(2, 8, 8, 4);
+
+SELECT * FROM animales;
+DELETE FROM puestos WHERE id_puesto = 1; 
+select *
+from empleados
+SELECT id_empleado, nombre, usuario, activo 
+FROM empleados 
+WHERE activo = true 
+ORDER BY id_empleado;
+-- =============================================
+-- Agregar columna calculada y clasificación
+-- =============================================
+
+ALTER TABLE animales
+ADD COLUMN edad_anios decimal(5,2)
+GENERATED ALWAYS AS (meses/12.0) STORED;
+
+ALTER TABLE animales
+ADD COLUMN clasificacion text;
+-- Verificar si existe el estado
+SELECT * FROM estado WHERE nombre = 'Comprado';
+
+-- Si no existe, insertarlo
+INSERT INTO estado (nombre, descripcion) 
+VALUES ('Comprado', 'Animal recién comprado, en proceso de recepción');
+--------------------------- =============================================== Funciones
+
+-- Dosis de medicamento según tipo
+CREATE OR REPLACE FUNCTION dosis(p_medicamento INT, p_arete VARCHAR)
+RETURNS DECIMAL(10,2)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_peso DECIMAL(10,2);
+    v_tipo text;
+    v_dosis_fija DECIMAL(10,2);
+    v_dosis_kg DECIMAL(10,2);
+BEGIN
+    SELECT peso INTO v_peso
+    FROM historial_peso
+    WHERE arete = p_arete
+    ORDER BY fecha DESC
+    LIMIT 1;
+    
+    IF v_peso IS NULL THEN
+        SELECT peso_entrada INTO v_peso
+        FROM animales
+        WHERE arete = p_arete;
+    END IF;
+    
+    SELECT tipo_dosis, dosis_fija, dosis_kg
+    INTO v_tipo, v_dosis_fija, v_dosis_kg
+    FROM medicamentos
+    WHERE id_medicamento = p_medicamento;
+    
+    IF v_tipo = 'Fija' THEN
+        RETURN v_dosis_fija;
+    ELSIF v_tipo = 'Proporcional' THEN
+        RETURN v_dosis_kg * v_peso;
+    ELSE
+        RETURN NULL;
+    END IF;
+END;
+$$;
+
+-- ¿Está en periodo de retiro?
+CREATE OR REPLACE FUNCTION en_retiro(p_arete VARCHAR)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_fecha DATE;
+BEGIN
+    SELECT MAX(fecha_disponible)
+    INTO v_fecha
+    FROM tratamientos
+    WHERE arete = p_arete;
+    
+    IF v_fecha IS NULL THEN
+        RETURN FALSE;
+    END IF;
+    
+    RETURN CURRENT_DATE < v_fecha;
+END;
+$$;
+
+-- Días restantes de retiro
+CREATE OR REPLACE FUNCTION dias_restantes(v_arete VARCHAR)
+RETURNS INTEGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_disponible DATE;
+    v_dias INTEGER;
+BEGIN
+    SELECT MAX(fecha_disponible) INTO v_disponible
+    FROM tratamientos
+    WHERE arete = v_arete;
+    
+    IF v_disponible IS NOT NULL AND v_disponible > current_date THEN
+        v_dias := v_disponible - CURRENT_DATE;
+    ELSE
+        v_dias := NULL;
+    END IF;
+    RETURN v_dias;
+END;
+$$;
+
+-- Ocupación de un corral
+CREATE OR REPLACE FUNCTION ocupacion_corral(p_corral INT)
+RETURNS TABLE(
+    capacidad INT,
+    ocupacion INT,
+    disponible INT,
+    porcentaje DECIMAL
+)
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    RETURN QUERY
+    SELECT
+        c.capacidad,
+        COUNT(a.arete)::INT AS ocupacion,
+        c.capacidad - COUNT(a.arete)::INT AS disponible,
+        (COUNT(a.arete) * 100.0 / c.capacidad)::DECIMAL AS porcentaje
+    FROM corrales c
+    LEFT JOIN animales a
+        ON a.id_corral_actual = c.id_corral
+        AND a.fecha_muerte IS NULL
+    WHERE c.id_corral = p_corral
+    GROUP BY c.capacidad;
+END;
+$$;
+
+-- Edad en días desde ingreso
+CREATE OR REPLACE FUNCTION edad_dietas(p_arete VARCHAR)
+RETURNS INT
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_fecha DATE;
+BEGIN
+    SELECT fecha_ingreso INTO v_fecha
+    FROM animales
+    WHERE arete = p_arete;
+    
+    IF v_fecha IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    RETURN CURRENT_DATE - v_fecha;
+END;
+$$;
+
+-- Ganancia diaria de peso
+CREATE OR REPLACE FUNCTION ganancia_diaria(p_arete VARCHAR)
+RETURNS DECIMAL(10,4)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_peso_inicial DECIMAL(10,2);
+    v_peso_final DECIMAL(10,2);
+    v_fecha_inicial DATE;
+    v_fecha_final DATE;
+    v_dias INT;
+BEGIN
+    SELECT peso, fecha
+    INTO v_peso_inicial, v_fecha_inicial
+    FROM historial_peso
+    WHERE arete = p_arete
+    ORDER BY fecha ASC
+    LIMIT 1;
+    
+    SELECT peso, fecha
+    INTO v_peso_final, v_fecha_final
+    FROM historial_peso
+    WHERE arete = p_arete
+    ORDER BY fecha DESC
+    LIMIT 1;
+    
+    IF v_peso_inicial IS NULL OR v_peso_final IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    v_dias := v_fecha_final - v_fecha_inicial;
+    IF v_dias <= 0 THEN
+        RETURN NULL;
+    END IF;
+    
+    RETURN (v_peso_final - v_peso_inicial) / v_dias;
+END;
+$$;
+
+-- Costo por kg de dieta
+CREATE OR REPLACE FUNCTION costo_dieta(p_id_dieta INT)
+RETURNS DECIMAL(10,2)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_costo_total DECIMAL(10,2);
+BEGIN
+    SELECT SUM((di.porcentaje/100.0) * i.precio_unitario)
+    INTO v_costo_total
+    FROM dieta_ingredientes di
+    JOIN ingredientes i ON di.id_ingredientes = i.id_ingredientes
+    WHERE di.id_dieta = p_id_dieta;
+    
+    RETURN COALESCE(v_costo_total, 0);
+END;
+$$;
+
+-- Calcular comida necesaria para un corral en una fecha
+CREATE OR REPLACE FUNCTION calcular_comida(p_id_corral INT, p_fecha DATE)
+RETURNS DECIMAL(10,2)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_total DECIMAL(10,2);
+    v_factor FLOAT;
+    v_peso_total DECIMAL(10,2);
+BEGIN
+    SELECT d.factor INTO v_factor
+    FROM corrales c
+    JOIN dietas d ON c.dieta_actual = d.id_dieta
+    WHERE c.id_corral = p_id_corral;
+    
+    IF v_factor IS NULL THEN
+        RETURN NULL;
+    END IF;
+    
+    SELECT SUM(COALESCE(hp.peso, a.peso_entrada))
+    INTO v_peso_total
+    FROM animales a
+    LEFT JOIN LATERAL (
+        SELECT h.peso
+        FROM historial_peso h
+        WHERE h.arete = a.arete
+          AND h.fecha <= p_fecha
+        ORDER BY h.fecha DESC
+        LIMIT 1
+    ) hp ON true
+    WHERE a.id_corral_actual = p_id_corral
+      AND a.fecha_muerte IS NULL;
+    
+    IF v_peso_total IS NULL THEN
+        RETURN 0;
+    END IF;
+    
+    RETURN v_peso_total * v_factor;
+END;
+$$;
+
+-- =============================================
+-- PROCEDIMIENTOS ALMACENADOS
+-- =============================================
+
+-- Registrar una venta
+CREATE OR REPLACE PROCEDURE registrar_venta(
+    p_arete VARCHAR,
+    p_id_comprador INT,
+    p_precio_kg DECIMAL(10,2),
+    p_peso_kg DECIMAL(10,2),
+    p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_id_venta INT;
+    v_en_retiro BOOLEAN;
+    v_corral INT;
+BEGIN
+    SELECT en_retiro(p_arete) INTO v_en_retiro;
+    IF v_en_retiro THEN
+        RAISE EXCEPTION 'Animal en periodo de retiro';
+    END IF;
+    
+    SELECT id_corral_actual INTO v_corral
+    FROM animales
+    WHERE arete = p_arete;
+    
+    INSERT INTO ventas(id_comprador, precio_kg, peso_total, estatus)
+    VALUES (p_id_comprador, p_precio_kg, p_peso_kg, 'Completado')
+    RETURNING id_venta INTO v_id_venta;
+    
+    INSERT INTO venta_detalle(id_venta, arete, precio)
+    VALUES (v_id_venta, p_arete, p_precio_kg * p_peso_kg);
+    
+    UPDATE animales
+    SET id_estado = (SELECT id_estado FROM estado WHERE nombre = 'Vendido'),
+        id_corral_actual = NULL
+    WHERE arete = p_arete;
+    
+    INSERT INTO bitacora(id_empleado, accion, tabla_afectada, registro_id)
+    VALUES (p_id_empleado, 'VENTA', 'ventas', v_id_venta::TEXT);
+END;
+$$;
+
+-- Mover animal(es) de corral
+CREATE OR REPLACE PROCEDURE mover_animal(
+    p_arete VARCHAR,
+    p_nuevo_corral INT,
+    p_nueva_dieta INT,
+    p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_capacidad INT;
+    v_ocupacion INT;
+BEGIN
+    SELECT capacidad INTO v_capacidad
+    FROM corrales
+    WHERE id_corral = p_nuevo_corral;
+    
+    SELECT COUNT(*) INTO v_ocupacion
+    FROM animales
+    WHERE id_corral_actual = p_nuevo_corral
+      AND fecha_muerte IS NULL;
+    
+    IF v_ocupacion >= v_capacidad THEN
+        RAISE EXCEPTION 'Corral lleno';
+    END IF;
+    
+    UPDATE animales
+    SET id_corral_actual = p_nuevo_corral
+    WHERE arete = p_arete;
+    
+    IF p_nueva_dieta IS NOT NULL THEN
+        UPDATE corrales
+        SET dieta_actual = p_nueva_dieta
+        WHERE id_corral = p_nuevo_corral;
+    END IF;
+    
+    INSERT INTO historial_eventos(arete, id_tipo, descripcion, id_empleado)
+    VALUES(
+        p_arete,
+        (SELECT id_tipo FROM tipo_evento WHERE nombre = 'Movimiento'),
+        'Cambio de corral',
+        p_id_empleado
+    );
+END;
+$$;
+
+-- Registrar recepción de lote
+CREATE OR REPLACE FUNCTION recepcion_lotes(
+    n_numero_guia VARCHAR,
+    n_id_proveedor INT,
+    n_motivo TEXT,
+    p_programados INT,
+    p_recibidos INT,
+    p_enfermos INT,
+    p_id_empleado INT
+)
+RETURNS VOID
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_id_guia INT;
+BEGIN
+    INSERT INTO guias_transito(numero_guia, id_proveedor, motivo)
+    VALUES (n_numero_guia, n_id_proveedor, n_motivo)
+    RETURNING id_guia INTO v_id_guia;
+    
+    INSERT INTO recepcion_lotes(id_guia, fecha_recepcion, animales_programados,
+                                animales_recibidos, animales_muertos, animales_enfermos, id_empleado)
+    VALUES (v_id_guia, CURRENT_DATE, p_programados, p_recibidos, 0, p_enfermos, p_id_empleado);
+END;
+$$;
+
+-- Servir comida descontando ingredientes
+CREATE OR REPLACE PROCEDURE servir_comida(
+    p_corral INT,
+    p_kg DECIMAL(10,2),
+    p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_dieta INT;
+    rec RECORD;
+BEGIN
+    SELECT dieta_actual INTO v_dieta
+    FROM corrales
+    WHERE id_corral = p_corral;
+    
+    FOR rec IN
+        SELECT di.id_ingredientes, di.porcentaje
+        FROM dieta_ingredientes di
+        WHERE di.id_dieta = v_dieta
+    LOOP
+        IF (SELECT stock_actual FROM ingredientes WHERE id_ingredientes = rec.id_ingredientes) <
+           (p_kg * rec.porcentaje / 100.0) THEN
+            RAISE EXCEPTION 'Stock insuficiente del ingrediente %', rec.id_ingredientes;
+        END IF;
+    END LOOP;
+    
+    INSERT INTO servicios_alimentacion(id_corral, id_dieta, cantidad_kg, id_empleado)
+    VALUES (p_corral, v_dieta, p_kg, p_id_empleado);
+    
+    UPDATE ingredientes i
+    SET stock_actual = stock_actual - (p_kg * di.porcentaje / 100.0)
+    FROM dieta_ingredientes di
+    WHERE di.id_dieta = v_dieta
+      AND di.id_ingredientes = i.id_ingredientes;
+END;
+$$;
+
+-- Registro automático de recepción con creación de animales
+CREATE OR REPLACE PROCEDURE registrar_recepcion(
+    p_numero_guia VARCHAR,
+    p_proveedor INT,
+    p_corral INT,
+    p_cantidad INT,
+    p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_guia INT;
+    i INT;
+    v_estado_comprado INT;
+BEGIN
+    SELECT id_estado INTO v_estado_comprado FROM estado WHERE nombre = 'comprado';
+    
+    INSERT INTO guias_transito(numero_guia, id_proveedor, motivo)
+    VALUES (p_numero_guia, p_proveedor, 'Recepción')
+    RETURNING id_guia INTO v_guia;
+    
+    INSERT INTO recepcion_lotes(id_guia, animales_recibidos, id_empleado)
+    VALUES (v_guia, p_cantidad, p_id_empleado);
+    
+    FOR i IN 1..p_cantidad LOOP
+        INSERT INTO animales(arete, id_estado, sexo, peso_entrada, meses, precio_compra, id_corral_actual)
+        VALUES (
+            CONCAT('AUTO_', v_guia, '_', i),
+            v_estado_comprado,
+            'macho',
+            200,
+            12,
+            1000,
+            p_corral
+        );
+    END LOOP;
+END;
+$$;
+
+-- Tratamiento masivo en un corral
+CREATE OR REPLACE PROCEDURE tratamiento_masivo(
+    p_corral INT,
+    p_medicamento INT,
+    p_id_empleado INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    r RECORD;
+    v_dosis DECIMAL(10,2);
+BEGIN
+    FOR r IN
+        SELECT arete FROM animales
+        WHERE id_corral_actual = p_corral
+          AND fecha_muerte IS NULL
+    LOOP
+        SELECT dosis(p_medicamento, r.arete) INTO v_dosis;
+        
+        INSERT INTO tratamientos(arete, id_medicamento, dosis_aplicada, id_empleado)
+        VALUES (r.arete, p_medicamento, v_dosis, p_id_empleado);
+        
+        UPDATE medicamentos
+        SET stock_actual = stock_actual - v_dosis
+        WHERE id_medicamento = p_medicamento;
+    END LOOP;
+END;
+$$;
+
+-- Sugerir reubicación (ejemplo)
+CREATE OR REPLACE FUNCTION sugerir_reubicacion(p_corral INT)
+RETURNS TABLE(
+    corral_origen INT,
+    corral_destino INT,
+    animales_a_mover INT
+)
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_ocupacion INT;
+BEGIN
+    SELECT COUNT(*) INTO v_ocupacion
+    FROM animales
+    WHERE id_corral_actual = p_corral
+      AND fecha_muerte IS NULL;
+    
+    RETURN QUERY
+    SELECT
+        p_corral,
+        c2.id_corral,
+        v_ocupacion
+    FROM corrales c2
+    WHERE c2.id_corral != p_corral
+      AND c2.capacidad > v_ocupacion
+    LIMIT 1;
+END;
+$$;
+
+-- =============================================
+-- TRIGGERS
+-- =============================================
+
+-- Clasificación automática según sexo y meses
+CREATE OR REPLACE FUNCTION clasificar_auto()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.meses IS NULL OR NEW.sexo IS NULL THEN
+        NEW.clasificacion := NULL;
+        RETURN NEW;
+    END IF;
+    
+    NEW.clasificacion := CASE
+        WHEN NEW.sexo = 'hembra' THEN
+            CASE
+                WHEN NEW.meses <= 15 THEN 'Becerra'
+                WHEN NEW.meses <= 24 THEN 'Novilla'
+                ELSE 'Vaca'
+            END
+        ELSE
+            CASE
+                WHEN NEW.meses <= 15 THEN 'Becerro'
+                WHEN NEW.meses <= 24 THEN 'Novillo'  -- Aquí podrías necesitar castrado, se deja como ejemplo
+                ELSE 'Toro'
+            END
+        END;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_clasificacion
+BEFORE INSERT OR UPDATE OF meses, sexo
+ON animales
+FOR EACH ROW
+EXECUTE FUNCTION clasificar_auto();
+
+-- Calcular fecha disponible tras un tratamiento
+CREATE OR REPLACE FUNCTION calcular_fecha_disponible()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_retiro INT;
+    v_requiere BOOLEAN;
+BEGIN
+    SELECT retiro_dias, requiere_retiro INTO v_retiro, v_requiere
+    FROM medicamentos
+    WHERE id_medicamento = NEW.id_medicamento;
+    
+    IF v_requiere IS NULL THEN
+        RAISE EXCEPTION 'Medicamento no encontrado';
+    END IF;
+    
+    IF v_requiere THEN
+        NEW.fecha_disponible := NEW.fecha_aplicacion + v_retiro;
+    ELSE
+        NEW.fecha_disponible := NEW.fecha_aplicacion;
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_disponibilidad
+BEFORE INSERT OR UPDATE OF id_medicamento, fecha_aplicacion
+ON tratamientos
+FOR EACH ROW
+EXECUTE FUNCTION calcular_fecha_disponible();
+
+-- Validar que el medicamento no esté caduco
+CREATE OR REPLACE FUNCTION trg_validar_caducidad_medicamento()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_fecha_cad DATE;
+BEGIN
+    SELECT MAX(fecha_caducidad)
+    INTO v_fecha_cad
+    FROM entrada_almacen
+    WHERE id_medicamento = NEW.id_medicamento;
+    
+    IF v_fecha_cad IS NOT NULL AND v_fecha_cad < CURRENT_DATE THEN
+        RAISE EXCEPTION 'Medicamento caduco';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tg_medicamento_caduco
+BEFORE INSERT ON tratamientos
+FOR EACH ROW
+EXECUTE FUNCTION trg_validar_caducidad_medicamento();
+
+-- Registro automático de cambio de corral en historial
+CREATE OR REPLACE FUNCTION trg_movimiento_corral()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.id_corral_actual IS DISTINCT FROM OLD.id_corral_actual THEN
+        INSERT INTO historial_eventos(arete, id_tipo, descripcion, id_empleado)
+        VALUES(
+            NEW.arete,
+            (SELECT id_tipo FROM tipo_evento WHERE nombre = 'Movimiento'),
+            CONCAT('De corral ', OLD.id_corral_actual, ' a ', NEW.id_corral_actual),
+            NEW.creado_por
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tg_movimiento_animal
+AFTER UPDATE OF id_corral_actual ON animales
+FOR EACH ROW
+EXECUTE FUNCTION trg_movimiento_corral();
+
+-- Validar retiro antes de venta
+CREATE OR REPLACE FUNCTION trg_validar_venta_retiro()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF en_retiro(NEW.arete) THEN
+        RAISE EXCEPTION 'Animal en periodo de retiro';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tg_venta_retiro
+BEFORE INSERT ON venta_detalle
+FOR EACH ROW
+EXECUTE FUNCTION trg_validar_venta_retiro();
+
+-- Validar que la dieta del servicio coincida con la del corral
+CREATE OR REPLACE FUNCTION trg_validar_dieta_corral()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_dieta INT;
+BEGIN
+    SELECT dieta_actual INTO v_dieta
+    FROM corrales
+    WHERE id_corral = NEW.id_corral;
+    
+    IF v_dieta IS NULL OR v_dieta != NEW.id_dieta THEN
+        RAISE EXCEPTION 'La dieta no corresponde al corral';
+    END IF;
+    RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER tg_dieta_corral
+BEFORE INSERT ON servicios_alimentacion
+FOR EACH ROW
+EXECUTE FUNCTION trg_validar_dieta_corral();
+
+-- Bloquear eliminación de animal con historial
+CREATE OR REPLACE FUNCTION trg_bloquear_animal()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF EXISTS (SELECT 1 FROM tratamientos WHERE arete = OLD.arete)
+       OR EXISTS (SELECT 1 FROM venta_detalle WHERE arete = OLD.arete) THEN
+        RAISE EXCEPTION 'No se puede eliminar: tiene historial';
+    END IF;
+    RETURN OLD;
+END;
+$$;
+
+CREATE TRIGGER tg_delete_animal
+BEFORE DELETE ON animales
+FOR EACH ROW
+EXECUTE FUNCTION trg_bloquear_animal();
+
+-- Alerta de stock mínimo
+CREATE OR REPLACE FUNCTION trg_alerta_stock()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    IF NEW.stock_actual < NEW.stock_minimo THEN
+        INSERT INTO alertas(tipo, mensaje)
+        VALUES (
+            'STOCK',
+            CONCAT('Stock bajo en ingrediente ID ', NEW.id_ingredientes)
+        );
+    END IF;
+    RETURN NEW;
+END;
+$$;
