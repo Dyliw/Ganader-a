@@ -1,23 +1,7 @@
 from fastapi import APIRouter
 
-# Importa SOLO los módulos que EXISTEN
-from app.api.v1 import recepcion
-from app.api.v1 import corrales
-from app.api.v1 import animales
-from app.api.v1 import alimentacion
-from app.api.v1 import almacen
-from app.api.v1 import catalogos
-from app.api.v1 import compradores
-from app.api.v1 import contactos
-from app.api.v1 import dietas
-from app.api.v1 import ingredientes
-from app.api.v1 import medicamentos
-from app.api.v1 import principal
-from app.api.v1 import proveedores
-from app.api.v1 import reportes
-from app.api.v1 import ventas
-from app.api.v1 import auth
-from app.api.v1 import empleados
+from app.api.v1 import recepcion, corrales, animales, alimentacion, almacen, catalogos, compradores, contactos, dietas, ingredientes, medicamentos, principal, reportes, proveedores, ventas, auth, empleados
+
 api_router = APIRouter()
 
 api_router.include_router(auth.router, prefix="/auth", tags=["Autentificación"])
